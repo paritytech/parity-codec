@@ -60,6 +60,10 @@ impl<'a, I:Input> Input for DepthTrackingInput<'a, I> {
 		}
 	}
 
+	fn skip(&mut self, len: usize) -> Result<(), Error> {
+		self.input.skip(len)
+	}
+
 	fn ascend_ref(&mut self) {
 		self.input.ascend_ref();
 		self.depth -= 1;

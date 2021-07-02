@@ -227,6 +227,10 @@ mod tests {
 			fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
 				u32::decode(input).map(|data| Self { data })
 			}
+
+			fn skip<I: Input>(input: &mut I) -> Result<(), Error> {
+				u32::skip(input)
+			}
 		}
 
 		let append = NoCopy { data: 100 };

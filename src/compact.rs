@@ -68,6 +68,15 @@ impl<'a, T: 'a + Input> Input for PrefixInput<'a, T> {
 			_ => self.input.read(buffer)
 		}
 	}
+
+	fn skip(&mut self, len: usize) -> Result<(), Error> {
+		if len == 0 {
+			Ok(())
+		} else {
+			let new_len = len - self.prefix.take().map_or(0, |_| 1);
+			self.input.skip(new_len)
+		}
+	}
 }
 
 /// Something that can return the compact encoded length for a given value.
@@ -163,6 +172,10 @@ where
 	fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
 		let as_ = Compact::<T::As>::decode(input)?;
 		Ok(Compact(<T as CompactAs>::decode_from(as_.0)?))
+	}
+
+	fn skip<I: Input>(input: &mut I) -> Result<(), Error> {
+		Compact::<T::As>::skip(input)
 	}
 }
 
@@ -420,6 +433,10 @@ impl Decode for Compact<()> {
 	fn decode<I: Input>(_input: &mut I) -> Result<Self, Error> {
 		Ok(Compact(()))
 	}
+
+	fn skip<I: Input>(_input: &mut I) -> Result<(), Error> {
+		Ok(())
+	}
 }
 
 const U8_OUT_OF_RANGE: &str = "out of range decoding Compact<u8>";
@@ -443,6 +460,11 @@ impl Decode for Compact<u8> {
 			},
 			_ => return Err("unexpected prefix decoding Compact<u8>".into()),
 		}))
+	}
+
+	fn skip<I: Input>(input: &mut I) -> Result<(), Error> {
+		Self::decode(input)?;
+		Ok(())
 	}
 }
 
@@ -469,6 +491,11 @@ impl Decode for Compact<u16> {
 			},
 			_ => return Err("unexpected prefix decoding Compact<u16>".into()),
 		}))
+	}
+
+	fn skip<I: Input>(input: &mut I) -> Result<(), Error> {
+		Self::decode(input)?;
+		Ok(())
 	}
 }
 
@@ -508,6 +535,11 @@ impl Decode for Compact<u32> {
 				}
 			}
 		}))
+	}
+
+	fn skip<I: Input>(input: &mut I) -> Result<(), Error> {
+		Self::decode(input)?;
+		Ok(())
 	}
 }
 
@@ -563,6 +595,11 @@ impl Decode for Compact<u64> {
 				},
 			},
 		}))
+	}
+
+	fn skip<I: Input>(input: &mut I) -> Result<(), Error> {
+		Self::decode(input)?;
+		Ok(())
 	}
 }
 
@@ -627,15 +664,21 @@ impl Decode for Compact<u128> {
 			},
 		}))
 	}
+
+	fn skip<I: Input>(input: &mut I) -> Result<(), Error> {
+		Self::decode(input)?;
+		Ok(())
+	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::assert_decode;
 
 	#[test]
 	fn compact_128_encoding_works() {
-		let tests = [
+		let tests = vec![
 			(0u128, 1usize), (63, 1), (64, 2), (16383, 2),
 			(16384, 4), (1073741823, 4),
 			(1073741824, 5), ((1 << 32) - 1, 5),
@@ -643,49 +686,49 @@ mod tests {
 			(1 << 64, 10), (1 << 72, 11), (1 << 80, 12), (1 << 88, 13), (1 << 96, 14), (1 << 104, 15),
 			(1 << 112, 16), ((1 << 120) - 1, 16), (1 << 120, 17), (u128::max_value(), 17)
 		];
-		for &(n, l) in &tests {
+		for (n, l) in tests.into_iter() {
 			let encoded = Compact(n as u128).encode();
 			assert_eq!(encoded.len(), l);
 			assert_eq!(Compact::compact_len(&n), l);
-			assert_eq!(<Compact<u128>>::decode(&mut &encoded[..]).unwrap().0, n);
+			assert_decode::<Compact<u128>>(&encoded[..], Compact(n));
 		}
 	}
 
 	#[test]
 	fn compact_64_encoding_works() {
-		let tests = [
+		let tests = vec![
 			(0u64, 1usize), (63, 1), (64, 2), (16383, 2),
 			(16384, 4), (1073741823, 4),
 			(1073741824, 5), ((1 << 32) - 1, 5),
 			(1 << 32, 6), (1 << 40, 7), (1 << 48, 8), ((1 << 56) - 1, 8), (1 << 56, 9), (u64::max_value(), 9)
 		];
-		for &(n, l) in &tests {
+		for (n, l) in tests.into_iter() {
 			let encoded = Compact(n as u64).encode();
 			assert_eq!(encoded.len(), l);
 			assert_eq!(Compact::compact_len(&n), l);
-			assert_eq!(<Compact<u64>>::decode(&mut &encoded[..]).unwrap().0, n);
+			assert_decode::<Compact<u64>>(&encoded[..], Compact(n));
 		}
 	}
 
 	#[test]
 	fn compact_32_encoding_works() {
-		let tests = [(0u32, 1usize), (63, 1), (64, 2), (16383, 2), (16384, 4), (1073741823, 4), (1073741824, 5), (u32::max_value(), 5)];
-		for &(n, l) in &tests {
+		let tests = vec![(0u32, 1usize), (63, 1), (64, 2), (16383, 2), (16384, 4), (1073741823, 4), (1073741824, 5), (u32::max_value(), 5)];
+		for (n, l) in tests.into_iter() {
 			let encoded = Compact(n as u32).encode();
 			assert_eq!(encoded.len(), l);
 			assert_eq!(Compact::compact_len(&n), l);
-			assert_eq!(<Compact<u32>>::decode(&mut &encoded[..]).unwrap().0, n);
+			assert_decode::<Compact<u32>>(&encoded[..], Compact(n));
 		}
 	}
 
 	#[test]
 	fn compact_16_encoding_works() {
-		let tests = [(0u16, 1usize), (63, 1), (64, 2), (16383, 2), (16384, 4), (65535, 4)];
-		for &(n, l) in &tests {
+		let tests = vec![(0u16, 1usize), (63, 1), (64, 2), (16383, 2), (16384, 4), (65535, 4)];
+		for (n, l) in tests.into_iter() {
 			let encoded = Compact(n as u16).encode();
 			assert_eq!(encoded.len(), l);
 			assert_eq!(Compact::compact_len(&n), l);
-			assert_eq!(<Compact<u16>>::decode(&mut &encoded[..]).unwrap().0, n);
+			assert_decode::<Compact<u16>>(&encoded[..], Compact(n));
 		}
 		assert!(<Compact<u16>>::decode(&mut &Compact(65536u32).encode()[..]).is_err());
 	}
@@ -697,7 +740,7 @@ mod tests {
 			let encoded = Compact(n as u8).encode();
 			assert_eq!(encoded.len(), l);
 			assert_eq!(Compact::compact_len(&n), l);
-			assert_eq!(<Compact<u8>>::decode(&mut &encoded[..]).unwrap().0, n);
+			assert_decode::<Compact<u8>>(&encoded[..], Compact(n));
 		}
 		assert!(<Compact<u8>>::decode(&mut &Compact(256u32).encode()[..]).is_err());
 	}
@@ -708,7 +751,7 @@ mod tests {
 
 	#[test]
 	fn compact_integers_encoded_as_expected() {
-		let tests = [
+		let tests = vec![
 			(0u64, "00"),
 			(63, "fc"),
 			(64, "01 01"),
@@ -724,30 +767,30 @@ mod tests {
 			(1 << 56, "13 00 00 00 00 00 00 00 01"),
 			(u64::max_value(), "13 ff ff ff ff ff ff ff ff")
 		];
-		for &(n, s) in &tests {
+		for (n, s) in tests.into_iter() {
 			// Verify u64 encoding
 			let encoded = Compact(n as u64).encode();
 			assert_eq!(hexify(&encoded), s);
-			assert_eq!(<Compact<u64>>::decode(&mut &encoded[..]).unwrap().0, n);
+			assert_decode::<Compact<u64>>(&encoded[..], Compact(n));
 
 			// Verify encodings for lower-size uints are compatible with u64 encoding
 			if n <= u32::max_value() as u64 {
-				assert_eq!(<Compact<u32>>::decode(&mut &encoded[..]).unwrap().0, n as u32);
+				assert_decode::<Compact<u32>>(&encoded[..], Compact(n as u32));
 				let encoded = Compact(n as u32).encode();
 				assert_eq!(hexify(&encoded), s);
-				assert_eq!(<Compact<u64>>::decode(&mut &encoded[..]).unwrap().0, n as u64);
+				assert_decode::<Compact<u64>>(&encoded[..], Compact(n as u64));
 			}
 			if n <= u16::max_value() as u64 {
-				assert_eq!(<Compact<u16>>::decode(&mut &encoded[..]).unwrap().0, n as u16);
+				assert_decode::<Compact<u16>>(&encoded[..], Compact(n as u16));
 				let encoded = Compact(n as u16).encode();
 				assert_eq!(hexify(&encoded), s);
-				assert_eq!(<Compact<u64>>::decode(&mut &encoded[..]).unwrap().0, n as u64);
+				assert_decode::<Compact<u64>>(&encoded[..], Compact(n as u64));
 			}
 			if n <= u8::max_value() as u64 {
-				assert_eq!(<Compact<u8>>::decode(&mut &encoded[..]).unwrap().0, n as u8);
+				assert_decode::<Compact<u8>>(&encoded[..], Compact(n as u8));
 				let encoded = Compact(n as u8).encode();
 				assert_eq!(hexify(&encoded), s);
-				assert_eq!(<Compact<u64>>::decode(&mut &encoded[..]).unwrap().0, n as u64);
+				assert_decode::<Compact<u64>>(&encoded[..], Compact(n as u64));
 			}
 		}
 	}
@@ -780,7 +823,12 @@ mod tests {
 			let encoded = compact.encode();
 			assert_eq!(encoded.len(), l);
 			assert_eq!(Compact::compact_len(&n), l);
-			let decoded = <Compact<Wrapper>>::decode(&mut & encoded[..]).unwrap();
+
+			let mut skipped_input = &encoded[..];
+			assert_eq!(<Compact<Wrapper>>::skip(&mut skipped_input), Ok(()));
+			assert_eq!(skipped_input.len(), 0);
+
+			let decoded = <Compact<Wrapper>>::decode(&mut &encoded[..]).unwrap();
 			let wrapper: Wrapper = decoded.into();
 			assert_eq!(wrapper, Wrapper(n));
 		}
@@ -866,31 +914,29 @@ mod tests {
 
 	#[test]
 	fn compact_u64_test() {
-		for a in [
+		for a in vec![
 			u64::max_value(),
 			u64::max_value() - 1,
 			u64::max_value() << 8,
 			(u64::max_value() << 8) - 1,
 			u64::max_value() << 16,
 			(u64::max_value() << 16) - 1,
-		].iter() {
-			let e = Compact::<u64>::encode(&Compact(*a));
-			let d = Compact::<u64>::decode(&mut &e[..]).unwrap().0;
-			assert_eq!(*a, d);
+		].into_iter() {
+			let e = Compact::<u64>::encode(&Compact(a));
+			assert_decode::<Compact::<u64>>(&e, Compact(a));
 		}
 	}
 
 	#[test]
 	fn compact_u128_test() {
-		for a in [
+		for a in vec![
 			u64::max_value() as u128,
 			(u64::max_value() - 10) as u128,
 			u128::max_value(),
 			u128::max_value() - 10,
-		].iter() {
-			let e = Compact::<u128>::encode(&Compact(*a));
-			let d = Compact::<u128>::decode(&mut &e[..]).unwrap().0;
-			assert_eq!(*a, d);
+		].into_iter() {
+			let e = Compact::<u128>::encode(&Compact(a));
+			assert_decode::<Compact::<u128>>(&e, Compact(a));
 		}
 	}
 
@@ -921,9 +967,13 @@ mod tests {
 				quickcheck::quickcheck! {
 					fn $test(v: $ty) -> bool {
 						let encoded = Compact(v).encode();
+
+						let mut skipped_input = &encoded[..];
+						let skipped = <Compact<$ty>>::skip(&mut skipped_input);
+
 						let deencoded = <Compact<$ty>>::decode(&mut &encoded[..]).unwrap().0;
 
-						v == deencoded
+						v == deencoded && skipped == Ok(()) && skipped_input.is_empty()
 					}
 				}
 			)*

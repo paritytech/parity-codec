@@ -18,8 +18,13 @@ use bitvec::{
 	vec::BitVec, store::BitStore, order::BitOrder, slice::BitSlice, boxed::BitBox, mem::BitMemory
 };
 use crate::{
-	EncodeLike, Encode, Decode, Input, Output, Error, Compact,
-	codec::{decode_vec_with_len, encode_slice_no_len},
+	codec::{
+		Decode, Encode, Input, Output,
+		decode_vec_with_len, encode_slice_no_len, skip_vec_with_len,
+	},
+	compact::Compact,
+	EncodeLike,
+	Error,
 };
 
 impl<O: BitOrder, T: BitStore + Encode> Encode for BitSlice<O, T> {
@@ -74,6 +79,17 @@ impl<O: BitOrder, T: BitStore + Decode> Decode for BitVec<O, T> {
 			Ok(result)
 		})
 	}
+
+	fn skip<I: Input>(input: &mut I) -> Result<(), Error> {
+		<Compact<u32>>::decode(input).and_then(move |Compact(bits)| {
+			// Otherwise it is impossible to store it on 32bit machine.
+			if bits as usize > ARCH32BIT_BITSLICE_MAX_BITS {
+				return Err("Attempt to decode a bitvec with too many bits".into());
+			}
+			let required_elements = required_elements::<T>(bits)? as usize;
+			skip_vec_with_len::<T, _>(input, required_elements)
+		})
+	}
 }
 
 impl<O: BitOrder, T: BitStore + Encode> Encode for BitBox<O, T> {
@@ -87,6 +103,10 @@ impl<O: BitOrder, T: BitStore + Encode> EncodeLike for BitBox<O, T> {}
 impl<O: BitOrder, T: BitStore + Decode> Decode for BitBox<O, T> {
 	fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
 		Ok(Self::from_bitslice(BitVec::<O, T>::decode(input)?.as_bitslice()))
+	}
+
+	fn skip<I: Input>(input: &mut I) -> Result<(), Error> {
+		BitVec::<O, T>::skip(input)
 	}
 }
 
@@ -105,12 +125,13 @@ fn required_elements<T: BitStore>(bits: u32) -> Result<u32, Error> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::assert_decode;
 	use bitvec::{bitvec, order::Msb0};
 	use crate::codec::MAX_PREALLOCATION;
 
 	macro_rules! test_data {
 		($inner_type:ident) => (
-			[
+			vec![
 				BitVec::<Msb0, $inner_type>::new(),
 				bitvec![Msb0, $inner_type; 0],
 				bitvec![Msb0, $inner_type; 1],
@@ -138,7 +159,7 @@ mod tests {
 				bitvec![Msb0, $inner_type; 0; MAX_PREALLOCATION * 9],
 				bitvec![Msb0, $inner_type; 1; MAX_PREALLOCATION * 32 + 1],
 				bitvec![Msb0, $inner_type; 0; MAX_PREALLOCATION * 33],
-			]
+			].into_iter()
 		)
 	}
 
@@ -171,33 +192,33 @@ mod tests {
 
 	#[test]
 	fn bitvec_u8() {
-		for v in &test_data!(u8) {
+		for v in test_data!(u8) {
 			let encoded = v.encode();
-			assert_eq!(*v, BitVec::<Msb0, u8>::decode(&mut &encoded[..]).unwrap());
+			assert_decode::<BitVec<Msb0, u8>>(&encoded, v);
 		}
 	}
 
 	#[test]
 	fn bitvec_u16() {
-		for v in &test_data!(u16) {
+		for v in test_data!(u16) {
 			let encoded = v.encode();
-			assert_eq!(*v, BitVec::<Msb0, u16>::decode(&mut &encoded[..]).unwrap());
+			assert_decode::<BitVec<Msb0, u16>>(&encoded, v);
 		}
 	}
 
 	#[test]
 	fn bitvec_u32() {
-		for v in &test_data!(u32) {
+		for v in test_data!(u32) {
 			let encoded = v.encode();
-			assert_eq!(*v, BitVec::<Msb0, u32>::decode(&mut &encoded[..]).unwrap());
+			assert_decode::<BitVec<Msb0, u32>>(&encoded, v);
 		}
 	}
 
 	#[test]
 	fn bitvec_u64() {
-		for v in &test_data!(u64) {
+		for v in test_data!(u64) {
 			let encoded = dbg!(v.encode());
-			assert_eq!(*v, BitVec::<Msb0, u64>::decode(&mut &encoded[..]).unwrap());
+			assert_decode::<BitVec<Msb0, u64>>(&encoded, v);
 		}
 	}
 
@@ -206,6 +227,7 @@ mod tests {
 		let data: &[u8] = &[0x69];
 		let slice = BitSlice::<Msb0, u8>::from_slice(data).unwrap();
 		let encoded = slice.encode();
+		assert_decode::<BitVec<Msb0, u8>>(&encoded, slice.to_bitvec());
 		let decoded = BitVec::<Msb0, u8>::decode(&mut &encoded[..]).unwrap();
 		assert_eq!(slice, decoded.as_bitslice());
 	}
@@ -216,7 +238,6 @@ mod tests {
 		let slice = BitSlice::<Msb0, u8>::from_slice(data).unwrap();
 		let bb = BitBox::<Msb0, u8>::from_bitslice(slice);
 		let encoded = bb.encode();
-		let decoded = BitBox::<Msb0, u8>::decode(&mut &encoded[..]).unwrap();
-		assert_eq!(bb, decoded);
+		assert_decode::<BitBox<Msb0, u8>>(&encoded, bb);
 	}
 }

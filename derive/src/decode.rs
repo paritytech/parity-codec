@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Derive the Decode::decode implementation for the type.
+
 use proc_macro2::{Span, TokenStream, Ident};
 use syn::{
 	spanned::Spanned,

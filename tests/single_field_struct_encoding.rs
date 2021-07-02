@@ -1,8 +1,8 @@
 #[cfg(not(feature="derive"))]
 use parity_scale_codec_derive::{Encode, Decode, CompactAs};
 #[cfg(feature="derive")]
-use parity_scale_codec::CompactAs;
-use parity_scale_codec::{Compact, Decode, Encode, HasCompact};
+use parity_scale_codec::{CompactAs, Decode};
+use parity_scale_codec::{Compact, Encode, HasCompact, assert_decode};
 use serde_derive::{Serialize, Deserialize};
 
 #[derive(Debug, PartialEq, Encode, Decode)]
@@ -75,18 +75,18 @@ fn test_encoding() {
 	let s_skip_cas = SSkipcas(s_skip);
 	let uh = Uh(x);
 
-	let mut s_encoded: &[u8] = &[3, 0, 0, 0];
-	let mut s_skip_encoded: &[u8] = &[3, 0, 0, 0];
-	let mut sc_encoded: &[u8] = &[12];
-	let mut sh_encoded: &[u8] = &[12];
-	let mut u_encoded: &[u8] = &[3, 0, 0, 0];
-	let mut u_skip_encoded: &[u8] = &[3, 0, 0, 0];
-	let mut uc_encoded: &[u8] = &[12];
-	let mut ucom_encoded: &[u8] = &[12];
-	let mut ucas_encoded: &[u8] = &[12];
-	let mut u_skip_cas_encoded: &[u8] = &[12];
-	let mut s_skip_cas_encoded: &[u8] = &[12];
-	let mut uh_encoded: &[u8] = &[12];
+	let s_encoded: &[u8] = &[3, 0, 0, 0];
+	let s_skip_encoded: &[u8] = &[3, 0, 0, 0];
+	let sc_encoded: &[u8] = &[12];
+	let sh_encoded: &[u8] = &[12];
+	let u_encoded: &[u8] = &[3, 0, 0, 0];
+	let u_skip_encoded: &[u8] = &[3, 0, 0, 0];
+	let uc_encoded: &[u8] = &[12];
+	let ucom_encoded: &[u8] = &[12];
+	let ucas_encoded: &[u8] = &[12];
+	let u_skip_cas_encoded: &[u8] = &[12];
+	let s_skip_cas_encoded: &[u8] = &[12];
+	let uh_encoded: &[u8] = &[12];
 
 	assert_eq!(s.encode(), s_encoded);
 	assert_eq!(s_skip.encode(), s_skip_encoded);
@@ -101,16 +101,16 @@ fn test_encoding() {
 	assert_eq!(s_skip_cas.encode(), s_skip_cas_encoded);
 	assert_eq!(uh.encode(), uh_encoded);
 
-	assert_eq!(s, S::decode(&mut s_encoded).unwrap());
-	assert_eq!(s_skip, SSkip::decode(&mut s_skip_encoded).unwrap());
-	assert_eq!(sc, Sc::decode(&mut sc_encoded).unwrap());
-	assert_eq!(sh, Sh::decode(&mut sh_encoded).unwrap());
-	assert_eq!(u, U::decode(&mut u_encoded).unwrap());
-	assert_eq!(u_skip, USkip::decode(&mut u_skip_encoded).unwrap());
-	assert_eq!(uc, Uc::decode(&mut uc_encoded).unwrap());
-	assert_eq!(ucom, <Compact::<U>>::decode(&mut ucom_encoded).unwrap());
-	assert_eq!(ucas, Ucas::decode(&mut ucas_encoded).unwrap());
-	assert_eq!(u_skip_cas, USkipcas::decode(&mut u_skip_cas_encoded).unwrap());
-	assert_eq!(s_skip_cas, SSkipcas::decode(&mut s_skip_cas_encoded).unwrap());
-	assert_eq!(uh, Uh::decode(&mut uh_encoded).unwrap());
+	assert_decode::<S>(s_encoded, s);
+	assert_decode::<SSkip>(s_skip_encoded, s_skip);
+	assert_decode::<Sc>(sc_encoded, sc);
+	assert_decode::<Sh<_>>(sh_encoded, sh);
+	assert_decode::<U>(u_encoded, u);
+	assert_decode::<USkip>(u_skip_encoded, u_skip);
+	assert_decode::<Uc>(uc_encoded, uc);
+	assert_decode::<Compact::<U>>(ucom_encoded, ucom);
+	assert_decode::<Ucas>(ucas_encoded, ucas);
+	assert_decode::<USkipcas>(u_skip_cas_encoded, u_skip_cas);
+	assert_decode::<SSkipcas>(s_skip_cas_encoded, s_skip_cas);
+	assert_decode::<Uh<_>>(uh_encoded, uh);
 }

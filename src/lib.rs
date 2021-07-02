@@ -345,3 +345,15 @@ pub use max_encoded_len::MaxEncodedLen;
 /// ```
 #[cfg(all(feature = "derive", feature = "max-encoded-len"))]
 pub use parity_scale_codec_derive::MaxEncodedLen;
+
+/// Assert Decode::decode and Decode::skip works
+///
+/// NOTE: this is not part of public API. Only used for internal tests
+#[doc(hidden)]
+pub fn assert_decode<T>(mut encoded: &[u8], res: T) where
+	T: core::fmt::Debug + Decode + PartialEq,
+{
+	assert_eq!(Decode::decode(&mut encoded.clone()), Ok(res));
+	assert_eq!(T::skip(&mut encoded), Ok(()));
+	assert!(encoded.is_empty());
+}

@@ -31,6 +31,7 @@ use syn::{Data, Field, Fields, DeriveInput, Error};
 use crate::utils::is_lint_attribute;
 
 mod decode;
+mod skip;
 mod encode;
 mod max_encoded_len;
 mod utils;
@@ -209,14 +210,21 @@ pub fn decode_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
 	let ty_gen_turbofish = ty_generics.as_turbofish();
 
 	let input_ = quote!(__codec_input_edqy);
-	let decoding = decode::quote(&input.data, name, &quote!(#ty_gen_turbofish), &input_);
+	let decode_impl = decode::quote(&input.data, name, &quote!(#ty_gen_turbofish), &input_);
+	let skip_impl = skip::quote(&input.data, name, &input_);
 
 	let impl_block = quote! {
 		impl #impl_generics _parity_scale_codec::Decode for #name #ty_generics #where_clause {
 			fn decode<__CodecInputEdqy: _parity_scale_codec::Input>(
 				#input_: &mut __CodecInputEdqy
-			) -> ::core::result::Result<Self, _parity_scale_codec::Error> {
-				#decoding
+			) -> core::result::Result<Self, _parity_scale_codec::Error> {
+				#decode_impl
+			}
+
+			fn skip<__CodecInputEdqy: _parity_scale_codec::Input>(
+				#input_: &mut __CodecInputEdqy
+			) -> core::result::Result<(), _parity_scale_codec::Error> {
+				#skip_impl
 			}
 		}
 	};

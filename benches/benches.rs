@@ -68,6 +68,10 @@ impl<'a> Input for NoLimitInput<'a> {
 		Ok(None)
 	}
 
+	fn skip(&mut self, len: usize) -> Result<(), Error> {
+		self.0.skip(len)
+	}
+
 	fn read(&mut self, into: &mut [u8]) -> Result<(), Error> {
 		self.0.read(into)
 	}

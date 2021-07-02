@@ -94,6 +94,12 @@ mod tests {
 				}
 			)
 		}
+
+		fn skip<I: Input>(input: &mut I) -> Result<(), Error> {
+			Vec::<u32>::skip(input)?;
+			u8::skip(input)?;
+			Compact::<u128>::skip(input)
+		}
 	}
 
 	#[test]
